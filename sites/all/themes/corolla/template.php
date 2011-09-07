@@ -15,7 +15,7 @@ function corolla_preprocess_html(&$variables) {
 
   // Add conditional stylesheets for IEs
   drupal_add_css(path_to_theme() . '/ie8.css', array('group' => CSS_THEME, 'browsers' => array('IE' => 'lte IE 8', '!IE' => FALSE), 'preprocess' => FALSE));
-  drupal_add_css(path_to_theme() . '/ie7.css', array('group' => CSS_THEME, 'browsers' => array('IE' => 'lte IE 7', '!IE' => FALSE), 'preprocess' => FALSE)); 
+  drupal_add_css(path_to_theme() . '/ie7.css', array('group' => CSS_THEME, 'browsers' => array('IE' => 'lte IE 7', '!IE' => FALSE), 'preprocess' => FALSE));
 
   /* Add dynamic stylesheet */
   ob_start();
@@ -80,7 +80,7 @@ function corolla_process_page(&$variables) {
       $columns++;
     }
   }
-  $variables['main_columns_number'] = $columns;  
+  $variables['main_columns_number'] = $columns;
 }
 
 /**

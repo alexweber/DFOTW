@@ -21,7 +21,7 @@ For more information see: http://headjs.com/#theory
 REQUIREMENTS
 ------------
 
-* head.js library (0.9+)
+* head.js library (0.96+)
 
 
 INSTALLATION
@@ -71,26 +71,7 @@ If you find a bug or have a feature request please file an issue: http://drupal.
 COMPATIBILITY
 -------------
 
-HeadJS has been tested and has found to work 100% with several contrib modules including but not limited to:
-
-  - jquery_update
-  - jquery_ui
-  - advagg
-  - ctools
-  - views
-  - gmap
-  - javascript_aggregator
-  - boost
-  - quicktabs
-  - fivestar
-  - disqus
-  - views_slideshow
-  - jcarousel
-  - ckeditor
-  - imce
-  - wysiwyg
-  - colorbox
-  - fancybox
+A lot of work has gone into ensuring maximum compatibility with other contrib modules. If you find a bug please use the issue tracker for support. Thanks!
 
 
 AUTHORS

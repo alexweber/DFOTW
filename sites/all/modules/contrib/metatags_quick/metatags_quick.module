@@ -5,7 +5,7 @@
  * Fields of this type are not displayed in HTML.
  * Instead, they add html meta to the head section.
  * 
- * @author Valery L. Lourie 
+ * @author Valery L. Lourie <http://drupal.org/user/239562>
  */
 
 /**
@@ -13,29 +13,78 @@
  * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_menu/7
  */
 function metatags_quick_menu() {
-  $items['admin/structure/metatags_quick'] = array(
+  $items['admin/config/search/metatags_quick'] = array(
     'page callback' => 'drupal_get_form',
     'page arguments' => array('metatags_quick_admin_settings'),
     'title' => 'Meta tags (quick) settings',
-    'access arguments' => array('administer content types'),
+    'access arguments' => array('administer metatags_quick'),
     'file' => 'metatags_quick.admin.inc',
   );
+  $items['admin/config/search/metatags_quick/settings'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('metatags_quick_admin_settings'),
+    'title' => 'General',
+    'access arguments' => array('administer metatags_quick'),
+    'file' => 'metatags_quick.admin.inc',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  $items['admin/config/search/metatags_quick/path'] = array(
+    'page callback' => 'metatags_quick_admin_path_page',
+    'title' => 'Edit meta tags',
+    'access arguments' => array('edit metatags_quick'),
+    'file' => 'metatags_quick.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/config/search/metatags_quick/upgrade'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('metatags_quick_upgrade'),
+    'title' => 'Upgrade from nodewords',
+    'access arguments' => array('administer metatags_quick'),
+    'file' => 'nodewords_upgrade.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
+  
   return $items;
 }
 
 /**
- * Implements hook_init().
- * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_init/7
+ * Implements hook_permission
+ * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_permission/7
  */
-function metatags_quick_init() {
-  if (drupal_is_front_page()) {
-    $module_settings = variable_get('metatags_quick_settings', _metatags_quick_settings_default());
-    if ($module_settings['use_front'] && !empty($module_settings['front_values'])) {
-      foreach ($module_settings['front_values'] as $key => $value) {
-        _metatags_quick_add_head(array('name' => $key, 'content' => $value));
-      }
-    }
-  }
+function metatags_quick_permission() {
+  return array(
+    'administer metatags_quick' => array(
+      'title' => t('Administer metatags(quick)'), 
+    ),
+    'edit metatags_quick' => array(
+      'title' => t('Edit meta tags'), 
+    ),
+  );
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function metatags_quick_entity_info() {
+  $return = array(
+    'metatags_path_based' => array(
+      'label' => t('Path-based meta tags'),
+      'fieldable' => TRUE,
+      'bundles' => array(
+        'metatags_path_based' => array(
+          'label' => t('Path-based meta tags'),
+          'admin' => array(
+            'path' => 'admin/config/search/metatags_quick',
+            'access arguments' => array('edit metatags_quick'),
+          ),
+        ),
+      ),
+      'base table' => 'metatags_quick_path_based',
+      'entity keys' => array('id' => 'id'),
+    ),
+  );
+  return $return;
 }
 
 /**
@@ -69,50 +118,96 @@ function metatags_quick_field_load($entity_type, $entities, $field, $instances, 
 }
 
 /**
- * Implements hook_entity_load.
- * 
- * Add html meta on entity load.
- * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_entity_load/7
+ * Implements hook_field_insert
+ * @see http://api.drupal.org/api/drupal/modules--field--field.api.php/function/hook_field_insert/7
  */
-function metatags_quick_entity_load($entities, $type) {
-  $fields = drupal_static(__FUNCTION__);
-  $type_info = entity_get_info($type);
-  if (empty($type_info['fieldable'])) {
-    return;
-  }
-
-  // Find the meta tag fields to iterate over.
-  if (!isset($fields[$type])) {
-    $fields[$type] = array();
-    $bundles = field_info_instances($type);
-    if (empty($bundles)) {
-      return;
-    }
-    foreach ($bundles as $bundle => $bundle_field_instances) {
-      foreach ($bundle_field_instances as $field_name => $field) {
-        $info = field_info_field_by_id($field['field_id']);
-        if ($info['type'] == 'metatags_quick') {
-          $fields[$type][] = $field_name;
+function metatags_quick_field_insert($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  // Serialize array items - for the meta robots
+  foreach ($items as $index => $item) {
+    if (is_array($item['metatags_quick'])) {
+      $non_empty = array();
+      foreach ($item['metatags_quick'] as $subitem) {
+        if ($subitem) {
+          $non_empty[] = $subitem;
         }
       }
+      $items[$index]['metatags_quick'] = join(',', $non_empty);
     }
   }
+}
 
-  foreach ($entities as $entity) {
-    foreach ($fields[$type] as $key) {
-      if ($items = field_get_items($type, $entity, $key)) {
-        foreach ($items as $item) {
-          _metatags_quick_add_head(array(
-            'name' => $item['meta_name'],
-            'content' => $item['metatags_quick'],
-            'entity' => $entity,
-            'type' => $type,
-          ));
-        }
+/**
+ * Implements hook_field_update
+ * @see http://api.drupal.org/api/drupal/modules--field--field.api.php/function/hook_field_update/7
+ */
+function metatags_quick_field_update($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  metatags_quick_field_insert($entity_type, $entities, $field, $instances, $langcode, $items, $age);
+}
+
+
+/**
+ * Implements hook_page_build
+ */
+function metatags_quick_page_build(&$page) {
+  global $language;
+  if (variable_get('metatags_quick_use_path_based', 0) && _metatags_quick_path_based_page()) {
+    // Try to load path-based meta tags
+    $path_based_id = db_select('metatags_quick_path_based', 'pv')
+      ->condition('lang', $language->language)
+      ->condition('path', $_GET['q'])
+      ->fields('pv', array('id'))
+      ->execute()
+      ->fetchField();
+    if ($path_based_id > 0) {
+      $controller = new DrupalDefaultEntityController('metatags_path_based');
+      $path_entities = $controller->load(array($path_based_id));
+      foreach ($path_entities as $entity) {
+        field_attach_view('metatags_path_based', $entity, 'default');
       }
     }
   }
 }
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function metatags_quick_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+  // Don't add meta tags editing links to admin pages.
+  if (path_is_admin($_GET['q'])) {
+    return;
+  }
+  
+  // Don't add meta tags editing links if path based meta tags are disabled.
+  if (!variable_get('metatags_quick_use_path_based', 1)) {
+    return;
+  }
+  
+  if (!_metatags_quick_path_based_page()) {
+    return;
+  }
+  
+  global $language;
+  $active_item = menu_get_item();
+  $edit_url = 'admin/config/search/metatags_quick/path';
+  $item = menu_get_item($edit_url);
+  if ($item['access']) {
+    $item['#href'] = $edit_url;
+    $item['localized_options']['query'] = array('path' => $_GET['q'], 'lang' => $language->language);
+    $data['tabs'][0]['output'][] = array(
+      '#theme' => 'menu_local_task',
+      '#link' => $item,
+    );
+    if (isset($data['tabs'][0]['count'])) {
+      ++$data['tabs'][0]['count']; 
+    }
+    else {
+      $data['actions'] = array('count' => 0, 'output' => array());
+      // Drupal does not display single tab. WTF?
+      $data['tabs'][0]['count'] = 2;
+    }
+  }
+}
+
 
 /**
  * Implements hook_field_validate().
@@ -120,7 +215,7 @@ function metatags_quick_entity_load($entities, $type) {
  */
 function metatags_quick_field_validate($obj_type, $object, $field, $instance, $langcode, $items, &$errors) {
   foreach ($items as $delta => $item) {
-    if (!empty($item['metatags_quick']) && mb_strlen($item['metatags_quick'], 'UTF-8') > 255) {
+    if (!empty($item['metatags_quick']) && !is_array($item['metatags_quick']) && _metatags_strlen($item['metatags_quick']) > 255) {
       $error = t('%name: the value may not be longer than %max characters.', array('%name' => $instance['label'], '%max' => 255));
       $errors[$field['field_name']][$langcode][$delta][] = array(
         'error' => $error, 
@@ -191,6 +286,10 @@ function metatags_quick_field_widget_info() {
       'label' => t('Text field'),
       'field types' => array('metatags_quick'),
     ),
+    'metatags_quick_checkboxes' => array(
+      'label' => t('Checkboxes'),
+      'field types' => array('metatags_quick'),
+    ),
   );
 }
 
@@ -212,7 +311,26 @@ function metatags_quick_field_settings_form($field, $instance) {
     '#description' => t('Meta name (defaults to the field name)'),
     '#required' => TRUE,
   );
+  
   return $form;
+}
+
+/**
+ * Implements hook_field_instance_settings_form().
+ * http://api.drupal.org/api/drupal/modules--field_ui--field_ui.api.php/function/hook_field_instance_settings_form/7
+ */
+function metatags_quick_field_instance_settings_form($field, $instance) {
+  $settings = $instance['settings'];
+  if ($instance['widget']['type'] == 'metatags_quick_checkboxes') {
+    $form['options'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Possible tags'),
+      '#default_value' => $settings['options'],
+      '#description' => t('Possible values, separated by comma'),
+      '#required' => TRUE,
+    );
+    return $form;
+  }
 }
 
 /**
@@ -220,28 +338,38 @@ function metatags_quick_field_settings_form($field, $instance) {
  */
 function metatags_quick_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $base) {
   $element = $base;
-  if ($instance['widget']['type'] == 'metatags_quick_textfield') {
-    $element['metatags_quick'] = $base + array(
-      '#type' => 'textfield',
-      '#maxlength' => 255,
-      '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
-    );
+  switch ($instance['widget']['type']) {
+    case 'metatags_quick_textfield':
+      $addition = array(
+        '#type' => 'textfield',
+        '#maxlength' => 255,
+        '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
+      );
+      break;
+    case 'metatags_quick_checkboxes':
+      $addition = array(
+        '#type' => 'checkboxes',
+        '#options' => drupal_map_assoc(isset($instance['settings']['options']) ? explode(',', $instance['settings']['options']) : array('noindex', 'nofollow')),
+        '#default_value' => isset($items[$delta]['metatags_quick']) ? explode(',', $items[$delta]['metatags_quick']) : array(),
+      );
+      break;
+    default:
+      $addition = array(
+        '#type' => 'textarea',
+        '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
+        '#rows' => 5,
+      );
   }
-  else {
-    $element['metatags_quick'] = $base + array(
-      '#type' => 'textarea',
-      '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
-      '#rows' => 5,
-    );
-  }
+  $element['metatags_quick'] = $base + $addition;
   return $element;
 }
 
 // Private functions area, may change without prior notice.
 
-// Adds meta to head.
-function _metatags_quick_add_head($item) {
+// Adds meta tag to internal storage that will be processed during page build.
+function _metatags_quick_add_head($item = FALSE) {
   static $added_meta = array();
+  static $meta_data = array();
   if (!empty($added_meta[$item['name']])) {
     return;
   }
@@ -256,15 +384,20 @@ function _metatags_quick_add_head($item) {
     else {
       $content = token_replace($content);
     }
+    // (Not nice) hack to separate multiple tags returned by token.
+    $content = preg_replace('/<\/a><a/', '<\/a>, <a', $content);
     $content = trim(strip_tags($content));
+    $item['content'] = $content;
+    $meta_data[] = $item;
     $element = array(
       '#tag' => 'meta',
       '#attributes' => array(
         'name' => $item['name'],
-        'content' => $content,
+        'content' => $item['content'],
       ),
     );
     drupal_add_html_head($element, 'metatags_quick_' . $item['name']);
+    
   }
   $added_meta[$item['name']] = TRUE;
 }
@@ -273,62 +406,27 @@ function _metatags_quick_add_head($item) {
 function _metatags_quick_settings_default() {
   return array(
     'use_front' => FALSE,
+    'use_path_based' => FALSE,
   );
 }
 
-// Create basic meta fields.
-function _metatags_quick_init_basic_fields() {
-  $types = node_type_get_types();
-  if (empty($types)) {
-    $msg = t('No content types defined. !l first',
-      array('!l' => l(t('define them'), 'admin/structure/types')));
-    drupal_set_message($msg, 'error');
-    return;
+function _metatags_strlen($str) {
+  if (function_exists('mb_strlen')) {
+    return mb_strlen($str, 'UTF-8');
   }
-  $field = array(
-    'field_name' => 'meta_keywords', 
-    'type' => 'metatags_quick', 
-    'module' => 'metatags_quick',
-    'settings' => array('meta_name' => 'keywords'), 
-    'cardinality' => 1,
-  );
-  field_create_field($field);
-  // Add field instance to all found content type.
-  foreach (array_keys($types) as $type) {
-    $instance = array(
-      'field_name' => $field['field_name'],
-      'entity_type' => 'node',
-      'bundle' => $type,
-      'label' => t('Keywords'),
-      'formatter' => 'metatags_quick_default',
-      'widget' => array(
-        'type' => 'metatags_quick_textfield',
-        'weight' => 0,
-      ),
-    );
-    field_create_instance($instance);
-  } 
-  $field = array(
-    'field_name' => 'meta_description', 
-    'type' => 'metatags_quick', 
-    'module' => 'metatags_quick', 
-    'settings' => array('meta_name' => 'description'), 
-    'cardinality' => 1,
-  );
-  field_create_field($field);
-  // Add field instance to all found content type.
-  foreach (array_keys($types) as $type) {
-    $instance = array(
-      'field_name' => $field['field_name'],
-      'entity_type' => 'node',
-      'bundle' => $type,
-      'label' => t('Description'),
-      'formatter' => 'metatags_quick_default',
-      'widget' => array(
-        'type' => 'metatags_quick_textarea',
-        'weight' => 0,
-      ),
-    );
-    field_create_instance($instance);
-  } 
+  else {
+    return strlen($str);
+  }
+}
+
+/**
+ * Determine if current page has to be served by path based
+ * (not entity based) meta tags set.
+ */
+function _metatags_quick_path_based_page() {
+  $router_item = menu_get_item();
+  // @todo: is there another way to decide?
+  return !is_array($router_item['page_arguments'])
+    || count($router_item['page_arguments']) == 0
+    || !($router_item['page_arguments'][0] instanceof stdClass);
 }

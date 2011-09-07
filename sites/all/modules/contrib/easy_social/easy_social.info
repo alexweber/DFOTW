@@ -1,0 +1,21 @@
+name = Easy Social
+description = "Simple module that add most common share buttons to nodes"
+
+; Core version
+core = 7.x
+
+; Loadable code files
+files[] = easy_social.module
+
+; Module dependencies
+dependencies[] = variable
+dependencies[] = variable_realm
+
+; Configuration page
+configure = admin/config/content/easysocial
+; Information added by drupal.org packaging script on 2011-08-16
+version = "7.x-1.0-beta4"
+core = "7.x"
+project = "easy_social"
+datestamp = "1313463416"
+

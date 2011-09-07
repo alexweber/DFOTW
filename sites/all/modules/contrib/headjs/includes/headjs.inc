@@ -7,8 +7,32 @@
  * Auxiliary function
  * Filters inline scripts
  */
-function _headjs_array_filter($val) {
+function _headjs_filter_inline($val) {
   return (is_array($val) && isset($val['type']) && $val['type'] === 'inline');
+}
+
+/**
+ * Auxiliary function
+ * Filters script includes
+ */
+function _headjs_filter_script($val) {
+  return !is_numeric($val);
+}
+
+/**
+ * Auxiliary function
+ * Filters scripts in header scope
+ */
+function _headjs_filter_head($val) {
+  return (is_array($val) && isset($val['scope']) && $val['scope'] === 'header');
+}
+
+/**
+ * Auxiliary function
+ * Filters scripts in footer scope
+ */
+function _headjs_filter_foot($val) {
+  return (is_array($val) && isset($val['scope']) && $val['scope'] !== 'header');
 }
 
 /**

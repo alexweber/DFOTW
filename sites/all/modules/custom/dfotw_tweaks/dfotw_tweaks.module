@@ -17,7 +17,8 @@ function dfotw_tweaks_init() {
       });
 EOT;
       drupal_add_js($inline_js, 'inline');
-    } else {
+    }
+    else {
       drupal_add_js('var switchTo5x=true;', 'inline');
       drupal_add_js('http://w.sharethis.com/button/buttons.js', 'external');
       drupal_add_js("stLight.options({publisher:'eba2c5cc-5f3a-4114-930a-1dcea4213f94'});", 'inline');
@@ -26,14 +27,22 @@ EOT;
 }
 
 /**
- * Implements theme_feed_icon().
+ * Implements hook_form_alter().
  */
-function corolla_feed_icon($variables) {
-  return <<<EOT
-<a title="Subscribe to Drupal Function of the Week RSS" class="feed-icon" href="http://feeds.feedburner.com/dfotw"><img src="http://feeds.feedburner.com/~fc/dfotw?bg=858A26&amp;fg=222222&amp;anim=0" height="26" width="88" style="border:0" alt="" /></a>
-EOT;
+function dfotw_tweaks_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id === 'function_node_form') {
+    global $user;
+    // this is necessary because user fields are not available in the global $user object
+    $user_obj = user_load($user->uid);
+
+    $form['field_function_author']['und'][0]['#default_value']['title'] = $user_obj->field_user_fullname['und'][0]['safe_value'];
+    $form['field_function_author']['und'][0]['#default_value']['url'] = $user_obj->field_user_url['und'][0]['url'];
+  }
 }
 
+/**
+ * Implements hook_html_head_alter().
+ */
 function dfotw_tweaks_html_head_alter(&$head_elements) {
   foreach ($head_elements as $key => &$val) {
     if (strpos($key, 'drupal_add_html_head_link:alternate:')) {
@@ -62,10 +71,14 @@ function dfotw_tweaks_block_info() {
     ),
     'dfotw_share_post' => array(
       'info' => 'DFOTW Share per Post',
-      'cache' => DRUPAL_CACHE_GLOBAL,
+      'cache' => DRUPAL_CACHE_PER_PAGE,
 #      'visibility' => BLOCK_VISIBILITY_PHP,
 #      'pages' => "return (arg(0) === 'node' && is_numeric(arg(1)));",
     ),
+    'dfotw_user_submission' => array(
+      'info' => 'User Submission Call to Action',
+      'cache' => DRUPAL_CACHE_GLOBAL
+    )
   );
 }
 
@@ -78,7 +91,7 @@ function dfotw_tweaks_block_view($delta = '') {
       return array(
         'subject' => t('Recent functions'),
         'content' => dfotw_recent_content(),
-      );    
+      );
       break;
     case 'dfotw_browse_version':
       return array(
@@ -98,6 +111,12 @@ function dfotw_tweaks_block_view($delta = '') {
         'content' => dfotw_share_post(),
       );
       break;
+    case 'dfotw_user_submission':
+      return array(
+        'subject' => t('Contribute!'),
+        'content' => theme('dfotw_user_submission'),
+      );
+      break;
   }
 }
 
@@ -111,6 +130,9 @@ function dfotw_tweaks_theme($existing, $type, $theme, $path) {
       'variables' => array('versions' => array()),
       'template' => 'dfotw_browse_version',
     ),
+    'dfotw_user_submission' => array(
+      'template' => 'dfotw_user_submission'
+    )
   );
 }
 
@@ -121,11 +143,11 @@ function dfotw_tweaks_theme($existing, $type, $theme, $path) {
 function dfotw_browse_version() {
   $terms = taxonomy_get_tree(2);
   $versions = array();
-  
+
   foreach ($terms as $term) {
     $versions[$term->tid] = $term->name;
   }
-  
+
   return theme('dfotw_browse_version', array('versions' => $versions));
 }
 
@@ -137,11 +159,11 @@ function dfotw_recent_content() {
   $query = "SELECT nid, title FROM {node} WHERE type = 'function' AND status = 1 ORDER BY created DESC LIMIT 5";
   $result = db_query($query);
   $functions = array();
-  
+
   foreach ($result as $row) {
     $functions[$row->nid] = $row->title;
   }
-  
+
   return theme('dfotw_recent_content', array('functions' => $functions));
 }
 

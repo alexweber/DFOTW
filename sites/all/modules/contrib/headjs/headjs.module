@@ -38,21 +38,28 @@ function headjs_js_alter(&$javascript) {
   unset($javascript['settings']);
 
   // save original scripts
-  $headscripts = $javascript;
+  $scripts = $javascript;
   $javascript = array();
 
   // Sort the JavaScript so that it appears in the correct order.
-  uasort($headscripts, 'drupal_sort_css_js');
+  uasort($scripts, 'drupal_sort_css_js');
 
-  $inline = array_filter($headscripts, '_headjs_array_filter');
+  // separate scripts from other scopes
+  // since users can define their own regions we just assume everything else is footer-level scope
+  $headscripts = array_filter($scripts, '_headjs_filter_head');
+  $footscripts = array_filter($scripts, '_headjs_filter_foot');
 
-  // finally, flatten $headscripts array & make paths absolute
-  $headscripts = array_map('_headjs_create_url', array_keys($headscripts));
+  $inline_head = array_filter($headscripts, '_headjs_filter_inline');
+  $inline_foot = array_filter($footscripts, '_headjs_filter_inline');
+
+  // finally, flatten $headscripts & $footscripts arrays & make paths absolute
+  $headscripts = array_map('_headjs_create_url', array_filter(array_keys($headscripts), '_headjs_filter_script'));
+  $footscripts = array_map('_headjs_create_url', array_filter(array_keys($footscripts), '_headjs_filter_script'));
 
   // Provide the page with information about the individual JavaScript files used,
   // information not otherwise available when aggregation is enabled.
   // taken from drupal_get_js()
-  $ajaxPageState = array_fill_keys($headscripts, 1);
+  $ajaxPageState = array_fill_keys(array_keys($scripts), 1);
 
   // find ajaxPageState in settings array
   foreach ($settings['data'] as $k => $v) {
@@ -72,6 +79,15 @@ function headjs_js_alter(&$javascript) {
     $settings['data'][]['ajaxPageState']['js'] = $ajaxPageState;
   }
 
+  // put settings at the start of the inline_head array
+  if ($settings) {
+    // build settings, taken from drupal_get_js()
+    $settings_inline = 'jQuery.extend(Drupal.settings, ' . drupal_json_encode(drupal_array_merge_deep_array($settings['data'])) . ");";
+    array_unshift($inline_head, array('data' => $settings_inline));
+  }
+
+//  krumo($headscripts, $inline_head, $footscripts, $inline_foot);die;
+
   // add headjs to the scripts array
   if (variable_get('headjs_embed', FALSE)) {
     $javascript['headjs--script'] = array(
@@ -82,7 +98,7 @@ function headjs_js_alter(&$javascript) {
       'type' => 'inline',
       'scope' => 'header',
       'defer' => FALSE,
-      'data' => file_get_contents($head_script) . ";\n",
+      'data' => file_get_contents($head_script),
     );
   } else {
     $javascript[$head_script] = array(
@@ -100,41 +116,72 @@ function headjs_js_alter(&$javascript) {
     );
   }
 
-  // build head.js function call
-  $headjs = '';
-
-  // we know the first three scripts are jQuery jQuery Once and Drupal.js
-  // since they are more important, we treat them differently
-  $headjs .= 'head.js("' . array_shift($headscripts) . '", function(){ ';
-  $headjs .= "\r  head.js(\"" . array_shift($headscripts) . '", function(){ ';
-  $headjs .= "\r    head.js(\"" . array_shift($headscripts) . "\", function(){ \r    ";
-
-  // add settings after jQuery & Drupal
-  if ($settings) {
-    // build settings, taken from drupal_get_js()
-    $headjs .= 'jQuery.extend(Drupal.settings, ' . drupal_json_encode(drupal_array_merge_deep_array($settings['data'])) . ");";
+  // build head.js header call
+  if (!empty($headscripts)) {
+    $headjs = 'head.js("' . implode('", "', $headscripts) . '");';
+    
+    $javascript['headjs--head'] = array(
+      'group' => JS_LIBRARY,
+      'weight' => -49,
+      'every_page' => 1,
+      'defer' => FALSE,
+      'type' => 'inline',
+      'scope' => 'header',
+      'data' => $headjs,
+    );
   }
-
-  // load scripts in parallel but execute in order
-  foreach ($headscripts as $script) {
-    if (is_numeric($script)) {
-      $headjs .= "\r    {$inline[$script]['data']}";
-    } else {
-      $headjs .= "\r    head.js(\"{$script}\");";
+  
+  // build head.js settings call
+  if (!empty($inline_head)) {
+    $headjs = 'head.ready(function(){';
+    foreach ($inline_head as $inline) {
+      $headjs .= $inline['data'] . ';';
     }
+    $headjs .= '});';
+    
+    $javascript['headjs--settings'] = array(
+      'group' => JS_LIBRARY,
+      'weight' => -48,
+      'every_page' => 1,
+      'defer' => TRUE,
+      'type' => 'inline',
+      'scope' => 'header',
+      'data' => $headjs,
+    );
   }
-
-  $headjs .= "\r    })\r  })\r})";
-
-  $javascript['headjs--replace'] = array(
-    'group' => JS_LIBRARY,
-    'weight' => -49,
-    'every_page' => 1,
-    'defer' => FALSE,
-    'type' => 'inline',
-    'scope' => 'header',
-    'data' => $headjs,
-  );
+  
+  // build head.js footer call
+  if (!empty($footscripts)) {
+    $footjs = 'head.js("' . implode('", "', $footscripts) . '");';
+    
+    $javascript['headjs--foot-replace'] = array(
+      'group' => JS_LIBRARY,
+      'weight' => -47,
+      'every_page' => 1,
+      'defer' => FALSE,
+      'type' => 'inline',
+      'scope' => 'footer',
+      'data' => $footjs,
+    );
+  }
+  
+  if (!empty($inline_foot)) {
+    $footjs = 'head.ready(function(){';
+    foreach ($inline_foot as $inline) {
+      $footjs .= $inline['data'] . ';';
+    }
+    $footjs .= '});';
+    
+    $javascript['headjs--foot-inline'] = array(
+      'group' => JS_LIBRARY,
+      'weight' => -46,
+      'every_page' => 1,
+      'defer' => TRUE,
+      'type' => 'inline',
+      'scope' => 'footer',
+      'data' => $footjs,
+    );
+  }  
 
 //  krumo($javascript);die;
 }

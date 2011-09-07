@@ -1,0 +1,410 @@
+<?php
+/**
+ * @file
+ * This is the file description for Easy Social module.
+ * 
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function easy_social_permission() {
+  return array(
+    'administer easy social' => array(
+      'title' => t('Administer Easy Social'),
+      'description' => t('Manage Easy Social permissions.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function easy_social_menu() {
+  $items = array();
+
+  $items['admin/config/content/easysocial'] = array(
+    'title' => 'Easy Social Settings',
+    'description' => 'Configure the social buttons and node types',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('admin_config_easy_social'),
+    'access arguments' => array('administer easy social'),
+  );
+
+  return $items;
+}
+
+/**
+* Implements hook_variable_info().
+*/
+function easy_social_variable_info() {
+  
+  $variables['easysocial_global_typebtn'] = array(
+    'title' => t('Easy Social Global Type of Buttons'),
+    'default' => 0,
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
+  
+  $variables['easysocial_global_social_buttons'] = array(
+    'title' => t('Easy Social Global Type of Network Buttons'),
+    'default' => array('twitter', 'facebook', 'googleplus','linkedin'),
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
+  
+  $variables['easysocial_tt_global_account_via'] = array(
+    'title' => t('Easy Social Global Mention Account'),
+    'default' => '',
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
+  
+  $variables['easysocial_tt_global_account_related'] = array(
+    'title' => t('Easy Social Global Related Account'),
+    'default' => '',
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
+  
+  $variables['easysocial_tt_global_account_description'] = array(
+    'title' => t('Easy Social Global Twitter Description'),
+    'default' => 'Check it out: !title',
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
+  
+  $node_types = node_type_get_types();
+  
+  foreach ($node_types as $type => $typeobj) {
+    
+    $variables['easysocial_' . $type . '_override'] = array(
+      'title' => t('Easy Social Override Option for type %type', array('%type' => $typeobj->name)),
+      'default' => -1,
+      'group' => 'easysocial',
+      'token' => FALSE,
+    );
+    
+    $variables['easysocial_' . $type . '_typebtn'] = array(
+      'title' => t('Easy Social Type of Buttons for %type', array('%type' => $typeobj->name)),
+      'default' => -1,
+      'group' => 'easysocial',
+      'token' => FALSE,
+    );
+  
+    $variables['easysocial_' . $type . '_social_buttons'] = array(
+      'title' => t('Easy Social Network Buttons for %type', array('%type' => $typeobj->name)),
+      'default' => array(),
+      'group' => 'easysocial',
+      'token' => FALSE,
+    );
+    
+  }
+    
+  return $variables;
+}
+  
+
+
+function admin_config_easy_social(){
+  $form = array();
+  
+  $form['global_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Global Settings'),
+    '#description' => t('Settings available for all content types'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  $form['global_settings']['easysocial_global_typebtn'] = array(
+    '#type' => 'radios',
+    '#title' => t('Type of buttons'),
+    '#options' => array(t('Horizontal'), t('Vertical')),
+    '#default_value' => variable_get_value('easysocial_global_typebtn'),
+  );
+  
+  $form['global_settings']['easysocial_global_social_buttons'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Social Buttons'),
+    '#options' => array('twitter' => 'Twitter', 'facebook' => 'Facebook','googleplus' => 'Google Plus','linkedin' => 'Linked In'),
+    '#default_value' => variable_get_value('easysocial_global_social_buttons'),
+  );
+  
+  $form['global_settings']['twitter_global_data'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Twitter Info'),
+    '#collapsible' => FALSE,
+    '#collapsed' => TRUE,
+  );
+  
+  $form['global_settings']['twitter_global_data']['easysocial_tt_global_account_via'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Mention account'),
+    '#size' => 40,
+    '#maxlength' => 255,
+    '#default_value' => variable_get_value('easysocial_tt_global_account_via'),
+  );
+  
+  $form['global_settings']['twitter_global_data']['easysocial_tt_global_account_related'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Related account'),
+    '#size' => 40,
+    '#maxlength' => 255,
+    '#default_value' => variable_get_value('easysocial_tt_global_account_related'),
+  );
+  
+  $form['global_settings']['twitter_global_data']['easysocial_tt_global_account_description'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Related account description'),
+    '#size' => 120,
+    '#maxlength' => 120,
+    '#default_value' => variable_get_value('easysocial_tt_global_account_description'),
+    '#description' => 'Use !title for the current page title'
+  );
+  
+  $form['override_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Override Settings by Type'),
+    '#description' => t('Settings by content type'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  
+  $node_types = node_type_get_types();
+     
+  foreach ($node_types as $type => $typeobj) {
+
+    $form['override_settings']['easysocial_settings_type_' . $type] = array(
+     '#type' => 'fieldset',
+     '#title' => t('Custom Settings for %type', array('%type' => $typeobj->name)),
+     '#collapsible' => FALSE,
+     '#collapsed' => TRUE,
+    );
+
+    $form['override_settings']['easysocial_settings_type_' . $type]['easysocial_' . $type . '_override'] = array(
+     '#type' => 'checkbox',
+     '#title' => t('Override'),
+     '#description' => t('Check this option to override the global settings for this type'),
+     '#default_value' => variable_get_value('easysocial_' . $type . '_override'),
+    );
+
+    $form['override_settings']['easysocial_settings_type_' . $type]['easysocial_' . $type . '_typebtn'] = array(
+     '#type' => 'radios',
+     '#title' => t('Type of buttons'),
+     // '#description' => t('Type of buttons, horizontal or vertical.'),
+     '#options' => array(t('Horizontal'), t('Vertical')),
+     '#default_value' => variable_get_value('easysocial_' . $type . '_typebtn')
+    );
+
+    $form['override_settings']['easysocial_settings_type_' . $type]['easysocial_' . $type . '_social_buttons'] = array(
+     '#type' => 'checkboxes',
+     '#title' => t('Social Buttons'),
+     '#options' => array('twitter' => 'Twitter', 'facebook' => 'Facebook','googleplus' => 'Google Plus','linkedin' => 'Linked In'),
+     '#default_value' => variable_get_value('easysocial_' . $type . '_social_buttons'),
+    );
+
+  }
+  
+  $form = system_settings_form($form);
+  
+  return $form;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function easy_social_theme() {
+  $theme = array(
+    'easy_social_links' => array(
+      'template' => 'easy-social-links',
+      'variables' => array('social_links' => NULL),
+    ),
+  );
+  return $theme;
+}
+
+
+/**
+ * Implements hook_field_extra_fields().
+ * The Easy Social available in Manage display page in the content types
+ */
+function easy_social_field_extra_fields() {
+  $extra = array();
+  $node_types = node_type_get_types();
+  foreach ($node_types as $type => $typeobj){
+    $extra['node'][$type] = array(
+      'display' => array(
+        'easy_social' => array(
+          'label' => t('Easy Social'),
+          'weight' => 100,
+        ),
+      ),
+    );
+  }
+  return $extra;
+}
+
+/**
+ * Implements hook_node_view().
+ * Certify to load the buttons in the moment I want
+ */
+function easy_social_node_view($node, $view_mode, $langcode) {
+   
+  //Check if this type has a custom setting
+  if(variable_get_value('easysocial_' . $node->type . '_override') == 1){
+    $type = variable_get_value('easysocial_' . $node->type . '_typebtn');
+    $buttons = variable_get_value('easysocial_' . $node->type . '_social_buttons');
+  } 
+    //Global settings
+    else {
+      $type = variable_get_value('easysocial_global_typebtn');
+      $buttons = variable_get_value('easysocial_global_social_buttons');
+  }
+  
+  //Url to be shared
+  $url = url('node/'.$node->nid, array('absolute' => TRUE));
+  
+  $social_links = array();
+  
+  //Load Js files and generate respective markups
+  foreach ($buttons as $service) {
+    if(is_string($service)){
+      $data = array(
+        'nid' => $node->nid,
+        'title' => $node->title
+      );
+      eval("_easysocial_js_add_{$service}();");
+      eval("\$social_links[\$service] = _easysocial_button_{$service}_markup(\$url, \$type, \$data);");
+    }
+  }
+  
+  //If at least one button is selected, go on
+  if(count($social_links) > 0){
+    $node->content['easy_social'] = array(
+      '#theme' => 'easy_social_links',
+      '#social_links' => $social_links,
+      '#weight' => 999
+    );
+  }
+  
+}
+
+
+/**
+ * Add external facebook js
+ */
+function _easysocial_js_add_facebook(){
+  drupal_add_js('http://static.ak.fbcdn.net/connect.php/js/FB.Share', 'external');
+}
+
+/**
+ * Add external twitter js
+ */
+function _easysocial_js_add_twitter(){
+  drupal_add_js('http://platform.twitter.com/widgets.js', 'external');
+}
+
+/**
+ * Add external googleplus js
+ */
+function _easysocial_js_add_googleplus(){
+  drupal_add_js('https://apis.google.com/js/plusone.js', 'external');
+}
+
+/**
+ * Add external linkedin js
+ */
+function _easysocial_js_add_linkedin(){
+  drupal_add_js('http://platform.linkedin.com/in.js', 'external');
+}
+
+/**
+ * Generate the needed markup for the facebook share link
+ * @param $url The url to be shared
+ * @param $type Generate horizontal or vertical widgets
+ * @param $data Actually not used
+ * @return the html markup
+ */
+function _easysocial_button_facebook_markup($url, $type, $data = NULL, $lang = 'en_US'){
+  if($type == 0){
+    $type_box = 'button_count';
+    $markup = <<<FB
+      <iframe class="fb-widget" 
+      src="http://www.facebook.com/plugins/like.php?href={$url}&amp;locale={$lang}&amp;layout={$type_box}&amp;show_faces=false&amp;width=86&amp;action=like&amp;font=trebuchet+ms&amp;colorscheme=light&amp;height=21" 
+      scrolling="no" 
+      frameborder="0" 
+      style="border:none; overflow:hidden; width:87px; height:21px;" 
+      allowTransparency="true"></iframe>
+FB;
+  } else {
+    $type_box = 'box_count';
+    $markup = <<<FB
+      <iframe class="fb-widget" 
+      src="http://www.facebook.com/plugins/like.php?href={$url}&amp;locale={$lang}&amp;layout={$type_box}&amp;show_faces=false&amp;width=450&amp;action=like&amp;font=trebuchet+ms&amp;colorscheme=light&amp;height=21" 
+      scrolling="no" 
+      frameborder="0" 
+      style="border:none; overflow:hidden; width:48px; height:60px;" 
+      allowTransparency="true"></iframe>
+FB;
+  }
+  return $markup;
+}
+
+/**
+ * Generate the needed markup for the twitter share link
+ * @param $url The url to be shared
+ * @param $type Generate horizontal or vertical widgets
+ * @param $data Assoc array with info for the tweet
+ * @return the html markup
+ */
+function _easysocial_button_twitter_markup($url, $type, $data = NULL, $lang = 'en'){
+  $type = ($type == 0) ? 'horizontal' : 'vertical';
+  
+  $account_via = variable_get_value('easysocial_tt_global_account_via');
+  $account_related = variable_get_value('easysocial_tt_global_account_related');
+  $description = variable_get_value('easysocial_tt_global_account_description');
+  $description = str_replace('!title', $data['title'], $description);
+  
+  $markup = <<<TT
+    <a href="http://twitter.com/share" 
+    class="twitter-share-button" 
+    data-url="{$url}" 
+    data-count="{$type}"
+    data-lang = "{$lang}"
+    data-via="{$account_via}" 
+    data-related="{$account_related}" 
+    data-text="{$description}">Tweet</a>
+TT;
+  return $markup;
+}
+
+/**
+ * Generate the needed markeup for the googleplus share link
+ * @param $url The url to be shared
+ * @param $type Generate horizontal or vertical widgets
+ * @param $data Actually not used
+ * @return the html markup
+ */
+function _easysocial_button_googleplus_markup($url, $type, $data = NULL, $lang = 'en_US'){
+  $type = ($type == 0) ? 'medium' : 'tall';
+  $markup = <<<GP
+    <g:plusone size="{$type}" href="{$url}"></g:plusone>
+GP;
+    return $markup;
+}
+
+/**
+ * Generate the needed markeup for the linkedin share link
+ * @param $url The url to be shared
+ * @param $type Generate horizontal or vertical widgets
+ * @param $data Actually not used
+ * @return the html markup
+ */
+function _easysocial_button_linkedin_markup($url, $type, $data = NULL, $lang = 'en_US'){
+  $type = ($type == 0) ? 'right' : 'top';
+  $markup = <<<LI
+    <script type="in/share" data-url="{$url}" data-counter="{$type}"></script>
+LI;
+    return $markup;
+}

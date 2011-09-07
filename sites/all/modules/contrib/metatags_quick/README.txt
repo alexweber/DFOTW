@@ -4,38 +4,29 @@
 
 DESCRIPTION:
 ------------
-Quick and dirty implementation of meta fields, using Drupal 7 Fields API
-Module exposes new field type. In most cases, you'll want to create keywords
-and description fields. After doing this, you'll be able to add and use meta fields to 
-any entity (node, taxonomy term, user etc.)
+Module implements meta tags for Drupal pages in 2 different ways.
+For pages that represent fieldable entities (nodes, users, taxonomy terms),
+module uses Drupal 7 Fields API. To do that, module exposes new field type: meta.
+For pages that do not represent fieldable entities (i.e. views, default 
+front page etc.), module exposes artificial entity 'Path-based meta tags'
+
 
 INSTALLATION:
 -------------
 1. Place the entire metatags_quick directory into your Drupal sites/all/modules/
    directory.
 
-2. Enable the Meta field module by navigating to:
+2. Enable Meta tags (quick) module by navigating to:
      administer > modules
      
-3. After installation, module suggests to install basic meta tags.
-This will create 2 meta tag fields, keywords and description, to
-all defined content types. If there are no content types defined
-(minimal installation profile), no action is performed.
+3a. You can attach meta tags to installed entities either via module
+	configuration screen (admin/config/search/metatags_quick).
      
-3a. You can skip automatic fields creation and define meta tags
+3b. You can skip automatic fields creation and define meta tags
 with Field UI module. 
      
-4. Add fields of type Meta to any of your content types:
-	 administer > structure > Content types > manage fields.
-	 
-5. (Optional) change meta name (it defaults to the field name)
+4. (Optional) enable path-based meta tags. 
 
-6. To add fields to taxonomy terms, go to administer > structure
- > taxonomy > select vocabulary > manage fields
- 
-7. To add fields to user, go to administration > configuration
- > people > manage fields
- 
 RELATED MODULES
 
 Field UI core module is necessary to define new fields, but can be switched off on 

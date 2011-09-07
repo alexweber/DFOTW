@@ -32,9 +32,9 @@ function headjs_enable() {
  * Implements hook_uninstall().
  */
 function headjs_uninstall() {
-  $result = db_query('SELECT name FROM {variable} WHERE name LIKE "headjs_%"');
-  while ($row = db_fetch_array($result)) {
-    variable_del($row['name']);
+  $result = db_select('variable', 'v')->fields('v', array('name'))->where('name LIKE :name', array('name' => 'headjs_%'))->execute()->fetchAssoc();
+  foreach ($result as $var) {
+    variable_del($var);
   }
 }
 
