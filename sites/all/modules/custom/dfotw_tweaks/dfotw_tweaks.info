@@ -1,0 +1,5 @@
+name = DFOTW Tweaks
+description = Provides custom functionality for DFOTW
+package = DFOTW
+version = 1.0
+core = 7.x

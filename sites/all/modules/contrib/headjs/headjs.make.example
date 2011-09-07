@@ -1,0 +1,15 @@
+; @file Example makefile for Drush Make
+
+core = 7.x
+api = 2
+
+; This is necessary for Drush make, if you want to use Pressflow change this line accordingly
+projects[] = drupal
+
+; Include Module
+projects[headjs][type] = module
+
+; Donwload head.js library to sites/all/libraries
+libraries[headjs][download][type] = git
+libraries[headjs][download][url] = https://github.com/headjs/headjs.git
+libraries[headjs][download][tag] = v0.96

@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the DFOTW feature.
+ */
+
+include_once('dfotw.features.inc');

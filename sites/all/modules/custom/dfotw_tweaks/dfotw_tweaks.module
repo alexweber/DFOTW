@@ -1,0 +1,181 @@
+<?php
+
+/**
+ * Implements hook_init().
+ */
+function dfotw_tweaks_init() {
+  drupal_add_css(drupal_get_path('module', 'dfotw_tweaks') . '/dfotw.css');
+  drupal_add_js(drupal_get_path('module', 'dfotw_tweaks') . '/dfotw.js');
+  drupal_add_js('http://platform.twitter.com/widgets.js', 'external');
+
+  if (arg(0) === 'node' && is_numeric(arg(1))) {
+    if (variable_get('headjs_enabled', FALSE)) {
+      $inline_js = <<<EOT
+      var switchTo5x=true;
+      head.js("http://w.sharethis.com/button/buttons.js", function(){
+      stLight.options({publisher:'eba2c5cc-5f3a-4114-930a-1dcea4213f94'});
+      });
+EOT;
+      drupal_add_js($inline_js, 'inline');
+    } else {
+      drupal_add_js('var switchTo5x=true;', 'inline');
+      drupal_add_js('http://w.sharethis.com/button/buttons.js', 'external');
+      drupal_add_js("stLight.options({publisher:'eba2c5cc-5f3a-4114-930a-1dcea4213f94'});", 'inline');
+    }
+  }
+}
+
+/**
+ * Implements theme_feed_icon().
+ */
+function corolla_feed_icon($variables) {
+  return <<<EOT
+<a title="Subscribe to Drupal Function of the Week RSS" class="feed-icon" href="http://feeds.feedburner.com/dfotw"><img src="http://feeds.feedburner.com/~fc/dfotw?bg=858A26&amp;fg=222222&amp;anim=0" height="26" width="88" style="border:0" alt="" /></a>
+EOT;
+}
+
+function dfotw_tweaks_html_head_alter(&$head_elements) {
+  foreach ($head_elements as $key => &$val) {
+    if (strpos($key, 'drupal_add_html_head_link:alternate:')) {
+      $val['#attributes']['href'] = 'http://feeds.feedburner.com/dfotw';
+      break;
+    }
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function dfotw_tweaks_block_info() {
+  return array(
+    'dfotw_recent_content' => array(
+      'info' => 'DFOTW Recent Content',
+      'cache' => DRUPAL_CACHE_GLOBAL,
+    ),
+    'dfotw_browse_version' => array(
+      'info' => 'DFOTW Browse by Version',
+      'cache' => DRUPAL_CACHE_GLOBAL,
+    ),
+    'dfotw_share_global' => array(
+      'info' => 'DFOTW Share Global',
+      'cache' => DRUPAL_CACHE_GLOBAL,
+    ),
+    'dfotw_share_post' => array(
+      'info' => 'DFOTW Share per Post',
+      'cache' => DRUPAL_CACHE_GLOBAL,
+#      'visibility' => BLOCK_VISIBILITY_PHP,
+#      'pages' => "return (arg(0) === 'node' && is_numeric(arg(1)));",
+    ),
+  );
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function dfotw_tweaks_block_view($delta = '') {
+  switch ($delta) {
+    case 'dfotw_recent_content':
+      return array(
+        'subject' => t('Recent functions'),
+        'content' => dfotw_recent_content(),
+      );    
+      break;
+    case 'dfotw_browse_version':
+      return array(
+        'subject' => t('Browse by version'),
+        'content' => dfotw_browse_version(),
+      );
+      break;
+    case 'dfotw_share_global':
+      return array(
+        'subject' => t('Share this site'),
+        'content' => dfotw_share_global(),
+      );
+      break;
+    case 'dfotw_share_post':
+      return array(
+        'subject' => t('Share this post'),
+        'content' => dfotw_share_post(),
+      );
+      break;
+  }
+}
+
+function dfotw_tweaks_theme($existing, $type, $theme, $path) {
+  return array(
+    'dfotw_recent_content' => array(
+      'variables' => array('functions' => array()),
+      'template' => 'dfotw_recent_content',
+    ),
+    'dfotw_browse_version' => array(
+      'variables' => array('versions' => array()),
+      'template' => 'dfotw_browse_version',
+    ),
+  );
+}
+
+/**
+ * Return links to browse functions by Drupal Version
+ * @return string The themed output
+ */
+function dfotw_browse_version() {
+  $terms = taxonomy_get_tree(2);
+  $versions = array();
+  
+  foreach ($terms as $term) {
+    $versions[$term->tid] = $term->name;
+  }
+  
+  return theme('dfotw_browse_version', array('versions' => $versions));
+}
+
+/**
+ * Return a list of recent functions
+ * @return string The themed output
+ */
+function dfotw_recent_content() {
+  $query = "SELECT nid, title FROM {node} WHERE type = 'function' AND status = 1 ORDER BY created DESC LIMIT 5";
+  $result = db_query($query);
+  $functions = array();
+  
+  foreach ($result as $row) {
+    $functions[$row->nid] = $row->title;
+  }
+  
+  return theme('dfotw_recent_content', array('functions' => $functions));
+}
+
+/**
+ * Global share widets
+ * @return string The themed output
+ */
+function dfotw_share_global() {
+  return <<<EOT
+<span id="dfotw_twitter">
+<a href="http://twitter.com/share" class="twitter-share-button" data-url="http://dfotw.com" data-text="Drupal Function of the Week #drupal" data-count="horizontal" data-via="drfotw" data-related="webdropbr">Tweet</a>
+</span>
+<span id="dfotw_facebook">
+<iframe src="http://www.facebook.com/plugins/like.php?app_id=220921991268989&amp;href=http%3A%2F%2Fdfotw.com&amp;send=false&amp;layout=button_count&amp;width=140&amp;show_faces=false&amp;action=like&amp;colorscheme=light&amp;font=trebuchet+ms&amp;height=21" scrolling="no" frameborder="0" style="border:none; overflow:hidden; width:140px; height:21px;" allowTransparency="true"></iframe>
+</span>
+EOT;
+}
+
+/**
+ * Per post share widets
+ * @return string The themed output
+ */
+function dfotw_share_post() {
+  $node = node_load(arg(1));
+  $url = url('node/' . $node->nid, array('absolute' => TRUE));
+  $title = "Drupal Function of the Week: {$node->title} #drupal";
+  $html = <<<EOT
+<span class="st_twitter_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_facebook_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_yahoo_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_gbuzz_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_delicious_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_email_large" st_url="{$url}" st_title="{$title}"></span>
+<span class="st_sharethis_large" st_url="{$url}" st_title="{$title}"></span>
+EOT;
+  return $html;
+}

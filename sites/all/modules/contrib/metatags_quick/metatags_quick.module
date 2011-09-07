@@ -1,0 +1,334 @@
+<?php
+/**
+ * @file Quick and dirty implementation of meta tags for drupal 7
+ * Module defines new field type 'meta'.
+ * Fields of this type are not displayed in HTML.
+ * Instead, they add html meta to the head section.
+ * 
+ * @author Valery L. Lourie 
+ */
+
+/**
+ * Implements hook_menu().
+ * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_menu/7
+ */
+function metatags_quick_menu() {
+  $items['admin/structure/metatags_quick'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('metatags_quick_admin_settings'),
+    'title' => 'Meta tags (quick) settings',
+    'access arguments' => array('administer content types'),
+    'file' => 'metatags_quick.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_init().
+ * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_init/7
+ */
+function metatags_quick_init() {
+  if (drupal_is_front_page()) {
+    $module_settings = variable_get('metatags_quick_settings', _metatags_quick_settings_default());
+    if ($module_settings['use_front'] && !empty($module_settings['front_values'])) {
+      foreach ($module_settings['front_values'] as $key => $value) {
+        _metatags_quick_add_head(array('name' => $key, 'content' => $value));
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_info().
+ * @see http://api.drupal.org/api/drupal/modules--field--field.api.php/function/hook_field_info/7
+ */
+function metatags_quick_field_info() {
+  return array(
+    'metatags_quick' => array(
+      'label' => 'Meta',
+      'description' => t('Meta tag to be displayed in the head section.'),
+      'settings' => array('meta_name',),
+      'default_widget' => 'text_textarea',
+      'default_formatter' => 'metatags_quick_default',
+      'property_type' => 'text',
+    ),
+  );
+}
+
+/**
+ * On field load, add meta name to the field data for storage in cache
+ * and further rendering
+ * @see http://api.drupal.org/api/drupal/modules--field--field.api.php/function/hook_field_load/7
+ */
+function metatags_quick_field_load($entity_type, $entities, $field, $instances, $langcode, &$items, $age) {
+  foreach ($items as $lang => $lang_item) {
+    foreach ($lang_item as $i => $final_item) {
+      $items[$lang][$i]['meta_name'] = $field['settings']['meta_name'];  
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_load.
+ * 
+ * Add html meta on entity load.
+ * @see http://api.drupal.org/api/drupal/modules--system--system.api.php/function/hook_entity_load/7
+ */
+function metatags_quick_entity_load($entities, $type) {
+  $fields = drupal_static(__FUNCTION__);
+  $type_info = entity_get_info($type);
+  if (empty($type_info['fieldable'])) {
+    return;
+  }
+
+  // Find the meta tag fields to iterate over.
+  if (!isset($fields[$type])) {
+    $fields[$type] = array();
+    $bundles = field_info_instances($type);
+    if (empty($bundles)) {
+      return;
+    }
+    foreach ($bundles as $bundle => $bundle_field_instances) {
+      foreach ($bundle_field_instances as $field_name => $field) {
+        $info = field_info_field_by_id($field['field_id']);
+        if ($info['type'] == 'metatags_quick') {
+          $fields[$type][] = $field_name;
+        }
+      }
+    }
+  }
+
+  foreach ($entities as $entity) {
+    foreach ($fields[$type] as $key) {
+      if ($items = field_get_items($type, $entity, $key)) {
+        foreach ($items as $item) {
+          _metatags_quick_add_head(array(
+            'name' => $item['meta_name'],
+            'content' => $item['metatags_quick'],
+            'entity' => $entity,
+            'type' => $type,
+          ));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_validate().
+ *
+ */
+function metatags_quick_field_validate($obj_type, $object, $field, $instance, $langcode, $items, &$errors) {
+  foreach ($items as $delta => $item) {
+    if (!empty($item['metatags_quick']) && mb_strlen($item['metatags_quick'], 'UTF-8') > 255) {
+      $error = t('%name: the value may not be longer than %max characters.', array('%name' => $instance['label'], '%max' => 255));
+      $errors[$field['field_name']][$langcode][$delta][] = array(
+        'error' => $error, 
+        'message' => $error,
+      );
+    }
+  }
+  return;
+}
+
+
+/**
+ * Implements hook_content_is_empty().
+ */
+function metatags_quick_field_is_empty($item, $field) {
+  if (empty($item['metatags_quick'])) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ *
+ */
+function metatags_quick_field_formatter_info() {
+  $formats = array(
+    'metatags_quick_default' => array(
+      'label' => t('Default metatags_quick link'),
+      'description' => t('Add meta to html head.'),
+      'field types' => array('metatags_quick'),
+    ),
+  );
+  return $formats;
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function metatags_quick_field_formatter_view($object_type, $object, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+  switch ($display['type']) {
+    case 'metatags_quick_default':
+      foreach ($items as $delta => $item) {
+        _metatags_quick_add_head(array(
+          'name' => $item['meta_name'],
+          'content' => $item['metatags_quick'],
+        ));        
+      }
+      // Hide element.
+      $element = array('#markup' => '', '#printed' => TRUE);      
+      break;
+
+  }
+  return $element;
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function metatags_quick_field_widget_info() {
+  return array(
+    'metatags_quick_textarea' => array(
+      'label' => t('Text area'),
+      'field types' => array('metatags_quick'),
+    ),
+    'metatags_quick_textfield' => array(
+      'label' => t('Text field'),
+      'field types' => array('metatags_quick'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function metatags_quick_field_settings_form($field, $instance) {
+  $settings = $field['settings'];
+  
+  if (empty($settings['meta_name'])) {
+    preg_match('/field_(.*)/', $instance['field_name'], $matches);
+    $settings['meta_name'] = $matches[1]; 
+  }
+
+  $form['meta_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Meta name'),
+    '#default_value' => $settings['meta_name'],
+    '#description' => t('Meta name (defaults to the field name)'),
+    '#required' => TRUE,
+  );
+  return $form;
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function metatags_quick_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $base) {
+  $element = $base;
+  if ($instance['widget']['type'] == 'metatags_quick_textfield') {
+    $element['metatags_quick'] = $base + array(
+      '#type' => 'textfield',
+      '#maxlength' => 255,
+      '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
+    );
+  }
+  else {
+    $element['metatags_quick'] = $base + array(
+      '#type' => 'textarea',
+      '#default_value' => isset($items[$delta]['metatags_quick']) ? $items[$delta]['metatags_quick'] : NULL,
+      '#rows' => 5,
+    );
+  }
+  return $element;
+}
+
+// Private functions area, may change without prior notice.
+
+// Adds meta to head.
+function _metatags_quick_add_head($item) {
+  static $added_meta = array();
+  if (!empty($added_meta[$item['name']])) {
+    return;
+  }
+  // Only output meta if content is not empty.
+  if ($item['content']) {
+    $content = $item['content'];
+    if (!empty($item['type']) && !empty($item['entity'])) {
+      $content = token_replace($content, array(
+        $item['type'] => $item['entity'],
+      ));
+    }
+    else {
+      $content = token_replace($content);
+    }
+    $content = trim(strip_tags($content));
+    $element = array(
+      '#tag' => 'meta',
+      '#attributes' => array(
+        'name' => $item['name'],
+        'content' => $content,
+      ),
+    );
+    drupal_add_html_head($element, 'metatags_quick_' . $item['name']);
+  }
+  $added_meta[$item['name']] = TRUE;
+}
+
+// Default settings array
+function _metatags_quick_settings_default() {
+  return array(
+    'use_front' => FALSE,
+  );
+}
+
+// Create basic meta fields.
+function _metatags_quick_init_basic_fields() {
+  $types = node_type_get_types();
+  if (empty($types)) {
+    $msg = t('No content types defined. !l first',
+      array('!l' => l(t('define them'), 'admin/structure/types')));
+    drupal_set_message($msg, 'error');
+    return;
+  }
+  $field = array(
+    'field_name' => 'meta_keywords', 
+    'type' => 'metatags_quick', 
+    'module' => 'metatags_quick',
+    'settings' => array('meta_name' => 'keywords'), 
+    'cardinality' => 1,
+  );
+  field_create_field($field);
+  // Add field instance to all found content type.
+  foreach (array_keys($types) as $type) {
+    $instance = array(
+      'field_name' => $field['field_name'],
+      'entity_type' => 'node',
+      'bundle' => $type,
+      'label' => t('Keywords'),
+      'formatter' => 'metatags_quick_default',
+      'widget' => array(
+        'type' => 'metatags_quick_textfield',
+        'weight' => 0,
+      ),
+    );
+    field_create_instance($instance);
+  } 
+  $field = array(
+    'field_name' => 'meta_description', 
+    'type' => 'metatags_quick', 
+    'module' => 'metatags_quick', 
+    'settings' => array('meta_name' => 'description'), 
+    'cardinality' => 1,
+  );
+  field_create_field($field);
+  // Add field instance to all found content type.
+  foreach (array_keys($types) as $type) {
+    $instance = array(
+      'field_name' => $field['field_name'],
+      'entity_type' => 'node',
+      'bundle' => $type,
+      'label' => t('Description'),
+      'formatter' => 'metatags_quick_default',
+      'widget' => array(
+        'type' => 'metatags_quick_textarea',
+        'weight' => 0,
+      ),
+    );
+    field_create_instance($instance);
+  } 
+}

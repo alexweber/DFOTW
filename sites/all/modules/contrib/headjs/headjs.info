@@ -1,0 +1,6 @@
+name = HeadJS
+description = The only script in your &lt;HEAD&gt;
+core = 7.x
+package = Performance and scalability
+project = "headjs"
+version = "7.x-1.2"

@@ -1,0 +1,76 @@
+<?php
+/**
+ * @file
+ * Installation hooks for HeadJS
+ */
+
+module_load_include('inc', 'headjs', 'includes/headjs');
+
+/**
+ * Implements hook_enable().
+ */
+function headjs_enable() {
+  // This module should run after all others
+  db_query("UPDATE {system} SET weight = 999 WHERE name = 'headjs'");
+  drupal_set_message(t('Headjs module weight has been updated.'));
+
+  // Check for presence of headjs script & show warning message if not found
+  if (!is_readable(headjs_get_path())) {
+    _headjs_warning_message();
+  }
+
+  // Check for presence of Javascript Aggregator and warn against using it
+  if (function_exists('javascript_aggregator_theme_registry_alter')) {
+    drupal_set_message(t('Javascript Aggregator is enabled. It is recommended to disable it to get the full benefits from HeadJS. If you still want to use javascript aggregation with HeadJS we suggest taking a look at <a href="http://drupal.org/project/advagg">Advanced CSS/JS Aggregation</a>.'), 'warning');
+  }
+
+  // Clear all caches
+  cache_clear_all();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function headjs_uninstall() {
+  $result = db_query('SELECT name FROM {variable} WHERE name LIKE "headjs_%"');
+  while ($row = db_fetch_array($result)) {
+    variable_del($row['name']);
+  }
+}
+
+/**
+ * Implements hook_requirements().
+ */
+function headjs_requirements($phase) {
+  $requirements = array();
+  $t = get_t();
+  $headjs_recommended_version = 0.96;
+
+  if ($phase == 'runtime') {
+    if (!is_readable(headjs_get_path())) {
+      $requirements['headjs'] = array(
+        'title' => $t('Head.js Library'),
+        'description' => $t('Download the head.js library at <a href="http://headjs.com/#download">http://headjs.com/#download</a> to /sites/all/libraries/headjs'),
+        'severity' => REQUIREMENT_ERROR,
+        'value' => 'N/A',
+      );
+    } else {
+      $headjs_version = headjs_get_version();
+      $requirements['headjs'] = array(
+        'title' => $t('Head.js Library'),
+        'value' => $headjs_version,
+      );
+
+      if (version_compare($headjs_version, $headjs_recommended_version) >= 0) {
+        $requirements['headjs']['severity'] = REQUIREMENT_OK;
+      } else {
+        $requirements['headjs']['severity'] = REQUIREMENT_WARNING;
+        $requirements['headjs']['description'] = $t('You are using an old version of the head.js library, please update to @rec for best results. Download the most recent version of the head.js library at <a href="http://headjs.com/#download">http://headjs.com/#download</a>.', array(
+          '@rec' => $headjs_recommended_version,
+        ));
+      }
+    }
+  }
+
+  return $requirements;
+}

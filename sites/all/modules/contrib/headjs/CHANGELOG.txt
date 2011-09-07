@@ -1,0 +1,14 @@
+HeadJS 7.x-1.1, 2011-05-22
+--------------------------
+- Improved Drupal.settings handling
+- Fixed warnings when library not present [#1158484]
+- Avoid duplicate messages when library not present [#1158484]
+- Fixed version detection (broken in 0.96)
+- Updated install hooks to recommend version 0.96 of head.js
+
+HeadJS 7.x-1.0, 2011-05-15
+--------------------------
+- initial release for Drupal 7
+- branched off from 6.x-1.3
+- removed obsolete settings & rewrote core functionality to use Drupal 7's API
+- a million times more stable because of hook_js_alter()

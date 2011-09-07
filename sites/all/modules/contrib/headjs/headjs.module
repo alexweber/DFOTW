@@ -1,0 +1,208 @@
+<?php
+/**
+ * @file HeadJS Drupal Hooks
+ * HeadJS Enhances Drupal's standard javascript loading by using head.js
+ */
+
+// filenames of full & loader-only versions
+define('HEADJS_FULL', 'head.min.js');
+define('HEADJS_LOADER', 'head.load.min.js');
+
+module_load_include('inc', 'headjs', 'includes/headjs');
+
+/**
+ * Implements hook_perm().
+ */
+function headjs_perm() {
+  return array('administer headjs');
+}
+
+/**
+ * Implements hook_js_alter().
+ */
+function headjs_js_alter(&$javascript) {
+  if (!variable_get('headjs_enable', TRUE)) {
+    return;
+  }
+
+  $head_script = headjs_get_path();
+
+  // check if library exists & is readable before doing anything else
+  if (!is_readable($head_script)) {
+    _headjs_warning_message();
+    return;
+  }
+
+  // separate settings
+  $settings = $javascript['settings'];
+  unset($javascript['settings']);
+
+  // save original scripts
+  $headscripts = $javascript;
+  $javascript = array();
+
+  // Sort the JavaScript so that it appears in the correct order.
+  uasort($headscripts, 'drupal_sort_css_js');
+
+  $inline = array_filter($headscripts, '_headjs_array_filter');
+
+  // finally, flatten $headscripts array & make paths absolute
+  $headscripts = array_map('_headjs_create_url', array_keys($headscripts));
+
+  // Provide the page with information about the individual JavaScript files used,
+  // information not otherwise available when aggregation is enabled.
+  // taken from drupal_get_js()
+  $ajaxPageState = array_fill_keys($headscripts, 1);
+
+  // find ajaxPageState in settings array
+  foreach ($settings['data'] as $k => $v) {
+    if (is_array($v)) {
+      foreach ($v as $kk => $vv) {
+        if ($kk === 'ajaxPageState') {
+          $pos = $k;
+          break;
+        }
+      }
+    }
+  }
+
+  if (isset($pos)) {
+    $settings['data'][$pos]['ajaxPageState']['js'] = $ajaxPageState;
+  } else {
+    $settings['data'][]['ajaxPageState']['js'] = $ajaxPageState;
+  }
+
+  // add headjs to the scripts array
+  if (variable_get('headjs_embed', FALSE)) {
+    $javascript['headjs--script'] = array(
+      'group' => JS_LIBRARY - 10,
+      'weight' => -50,
+      'every_page' => 1,
+      'preprocess' => FALSE,
+      'type' => 'inline',
+      'scope' => 'header',
+      'defer' => FALSE,
+      'data' => file_get_contents($head_script) . ";\n",
+    );
+  } else {
+    $javascript[$head_script] = array(
+      'group' => JS_LIBRARY - 10,
+      'weight' => -50,
+      'every_page' => 1,
+      'inline' => FALSE,
+      'preprocess' => FALSE,
+      'type' => 'file',
+      'scope' => 'header',
+      'cache' => TRUE,
+      'defer' => FALSE,
+      'version' => headjs_get_version(),
+      'data' => $head_script
+    );
+  }
+
+  // build head.js function call
+  $headjs = '';
+
+  // we know the first three scripts are jQuery jQuery Once and Drupal.js
+  // since they are more important, we treat them differently
+  $headjs .= 'head.js("' . array_shift($headscripts) . '", function(){ ';
+  $headjs .= "\r  head.js(\"" . array_shift($headscripts) . '", function(){ ';
+  $headjs .= "\r    head.js(\"" . array_shift($headscripts) . "\", function(){ \r    ";
+
+  // add settings after jQuery & Drupal
+  if ($settings) {
+    // build settings, taken from drupal_get_js()
+    $headjs .= 'jQuery.extend(Drupal.settings, ' . drupal_json_encode(drupal_array_merge_deep_array($settings['data'])) . ");";
+  }
+
+  // load scripts in parallel but execute in order
+  foreach ($headscripts as $script) {
+    if (is_numeric($script)) {
+      $headjs .= "\r    {$inline[$script]['data']}";
+    } else {
+      $headjs .= "\r    head.js(\"{$script}\");";
+    }
+  }
+
+  $headjs .= "\r    })\r  })\r})";
+
+  $javascript['headjs--replace'] = array(
+    'group' => JS_LIBRARY,
+    'weight' => -49,
+    'every_page' => 1,
+    'defer' => FALSE,
+    'type' => 'inline',
+    'scope' => 'header',
+    'data' => $headjs,
+  );
+
+//  krumo($javascript);die;
+}
+
+/**
+ * Implements hook_help().
+ */
+function headjs_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case "admin/help#headjs":
+    case 'admin/settings/headjs':
+      $output = '<p>'.  t("The HeadJS module uses the <a href=\"http://headjs.com/\">head.js</a> javascript library to dramatically improve javascript loading times by adding only one script to the document's head and then downloading individual script files in parallel.") .'</p>';
+      $output .= '<p>'.  t('Since downloading many small files at the same time is faster than downloading one big file, head.js makes pages load blazingly fast and is especially beneficial for certain mobile browsers who limit the size of individually cached javascript files.') .'</p>';
+      $output .= '<p>'.  t('For more information see <a href=\"http://headjs.com/#theory\">head.js theory</a>') .'</p>';
+      $output .= '<p>' . t('If something is not working as expected please <a href="http://drupal.org/node/add/project-issue/headjs">file an issue</a>.');
+      return $output;
+      break;
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function headjs_menu() {
+  $items = array();
+
+  $items['admin/config/development/performance/default'] = array(
+    'title' => 'Performance',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'file path' => drupal_get_path('module', 'system'),
+    'weight' => 0,
+  );
+
+  $items['admin/config/development/performance/headjs'] = array(
+    'title' => 'HeadJS',
+    'description' => 'Configure settings for Headjs module',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('headjs_settings'),
+    'access arguments' => array('administer headjs'),
+    'file' => 'includes/headjs.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 9,
+  );
+
+  $items['admin/config/headjs'] = array(
+    'title' => 'HeadJS',
+    'description' => 'Configure settings for Headjs module',
+    'page callback' => 'drupal_goto',
+    'page arguments' => array('admin/settings/performance/headjs'),
+    'access arguments' => array('administer headjs'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+/*
+ * Integration with "Do"
+ * http://drupal.org/project/do
+ */
+
+/**
+ * Implements hook_do().
+ */
+function headjs_do() {
+  return array(
+    'headjs enable' => '_headjs_enable',
+    'headjs disable' => '_headjs_disable'
+  );
+}
