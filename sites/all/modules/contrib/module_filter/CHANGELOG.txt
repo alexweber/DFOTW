@@ -1,3 +1,10 @@
+Module Filter 7.x-1.6, 2011-09-15
+---------------------------------
+#1241662 by Niklas Fiekas: Sort modules by display name.
+#1254140 by greenSkin: No longer return anything in hook_update_7100.
+by greenSkin: Fixed bug with visual aids sometimes not updating correctly.
+
+
 Module Filter 7.x-1.5, 2011-08-16
 ---------------------------------
 by greenSkin: Brought the 7.x branch current with the 6.x branch features.

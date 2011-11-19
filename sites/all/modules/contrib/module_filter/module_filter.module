@@ -104,7 +104,7 @@ function module_filter_form_system_modules_alter(&$form, &$form_state, $form_id)
     }
 
     // Sort the array of modules alphabetically.
-    ksort($modules);
+    uasort($modules, 'module_filter_sort_modules_by_display_name');
 
     // Replace the $form['modules'] with our $modules array.
     $form['modules'] = $modules;
@@ -134,6 +134,13 @@ function module_filter_theme() {
       'file' => 'module_filter.theme.inc'
     )
   );
+}
+
+function module_filter_sort_modules_by_display_name($a, $b) {
+  if (is_array($a) && is_array($b) && isset($a['#package'], $b['#package'])) {
+    return strcasecmp($a['name']['#markup'], $b['name']['#markup']);
+  }
+  return 0;
 }
 
 function module_filter_get_id($text) {

@@ -30,6 +30,20 @@ function easy_social_menu() {
     'page arguments' => array('admin_config_easy_social'),
     'access arguments' => array('administer easy social'),
   );
+  
+  $items['admin/config/content/easysocial/default'] = array(
+    'title' => 'Easy Social Settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  
+  $items['admin/config/content/easysocial/paths-ignore'] = array(
+    'title' => 'Ignore Paths',
+    'description' => 'Global paths to ignore and do not display Easy Social',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('admin_config_easy_social_ignore_paths'),
+    'access arguments' => array('administer easy social'),
+    'type' => MENU_LOCAL_TASK,
+  );
 
   return $items;
 }
@@ -38,6 +52,13 @@ function easy_social_menu() {
 * Implements hook_variable_info().
 */
 function easy_social_variable_info() {
+  
+  $variables['easysocial_ignore_paths'] = array(
+    'title' => t('Easy Social Global Ignore Paths'),
+    'default' => '',
+    'group' => 'easysocial',
+    'token' => FALSE,
+  );
   
   $variables['easysocial_global_typebtn'] = array(
     'title' => t('Easy Social Global Type of Buttons'),
@@ -134,7 +155,7 @@ function admin_config_easy_social(){
   $form['global_settings']['twitter_global_data'] = array(
     '#type' => 'fieldset',
     '#title' => t('Twitter Info'),
-    '#collapsible' => FALSE,
+    '#collapsible' => TRUE,
     '#collapsed' => TRUE,
   );
   
@@ -172,13 +193,17 @@ function admin_config_easy_social(){
   );
   
   $node_types = node_type_get_types();
+
+  // sometimes when dealing with feature-defined content types they appear out of order
+  // since this is an admin page we prefer organization over performance so go ahead and sort it
+  ksort($node_types);
      
   foreach ($node_types as $type => $typeobj) {
 
     $form['override_settings']['easysocial_settings_type_' . $type] = array(
      '#type' => 'fieldset',
      '#title' => t('Custom Settings for %type', array('%type' => $typeobj->name)),
-     '#collapsible' => FALSE,
+     '#collapsible' => TRUE,
      '#collapsed' => TRUE,
     );
 
@@ -205,6 +230,25 @@ function admin_config_easy_social(){
     );
 
   }
+  
+  $form = system_settings_form($form);
+  
+  return $form;
+}
+
+/**
+ * Form callback
+ * Return settings form for ignore-paths
+ */
+function admin_config_easy_social_ignore_paths() {
+  $form = array();
+  
+  $form['easysocial_ignore_paths'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Ignore paths'),
+    '#description' => t('Every URL placed here, will not have any Social links.'),
+    '#default_value' => variable_get_value('easysocial_ignore_paths'),
+  );
   
   $form = system_settings_form($form);
   
@@ -250,44 +294,59 @@ function easy_social_field_extra_fields() {
  * Certify to load the buttons in the moment I want
  */
 function easy_social_node_view($node, $view_mode, $langcode) {
-   
-  //Check if this type has a custom setting
-  if(variable_get_value('easysocial_' . $node->type . '_override') == 1){
-    $type = variable_get_value('easysocial_' . $node->type . '_typebtn');
-    $buttons = variable_get_value('easysocial_' . $node->type . '_social_buttons');
-  } 
-    //Global settings
-    else {
-      $type = variable_get_value('easysocial_global_typebtn');
-      $buttons = variable_get_value('easysocial_global_social_buttons');
+
+  // Check if the path is ignored
+  $urls_ignored = variable_get_value('easysocial_ignore_paths');
+  
+  $page_match = FALSE;
+  
+  $path = drupal_get_path_alias($_GET['q']);
+  
+  // Compare with the internal and path alias (if any).
+  $page_match = drupal_match_path($path, $urls_ignored);
+  
+  if ($path != $_GET['q']) {
+    $page_match = $page_match || drupal_match_path($_GET['q'], $urls_ignored);
   }
-  
-  //Url to be shared
-  $url = url('node/'.$node->nid, array('absolute' => TRUE));
-  
-  $social_links = array();
-  
-  //Load Js files and generate respective markups
-  foreach ($buttons as $service) {
-    if(is_string($service)){
-      $data = array(
-        'nid' => $node->nid,
-        'title' => $node->title
-      );
-      eval("_easysocial_js_add_{$service}();");
-      eval("\$social_links[\$service] = _easysocial_button_{$service}_markup(\$url, \$type, \$data);");
+          
+  if(!$page_match){
+    //Check if this type has a custom setting
+    if(variable_get_value('easysocial_' . $node->type . '_override') == 1){
+      $type = variable_get_value('easysocial_' . $node->type . '_typebtn');
+      $buttons = variable_get_value('easysocial_' . $node->type . '_social_buttons');
+    } 
+      //Global settings
+      else {
+        $type = variable_get_value('easysocial_global_typebtn');
+        $buttons = variable_get_value('easysocial_global_social_buttons');
     }
-  }
-  
-  //If at least one button is selected, go on
-  if(count($social_links) > 0){
-    $node->content['easy_social'] = array(
-      '#theme' => 'easy_social_links',
-      '#social_links' => $social_links,
-      '#weight' => 999
-    );
-  }
-  
+
+    //Url to be shared
+    $url = url('node/'.$node->nid, array('absolute' => TRUE));
+
+    $social_links = array();
+
+    //Load Js files and generate respective markups
+    foreach ($buttons as $service) {
+      if(is_string($service)){
+        $data = array(
+          'nid' => $node->nid,
+          'title' => $node->title
+        );
+        eval("_easysocial_js_add_{$service}();");
+        eval("\$social_links[\$service] = _easysocial_button_{$service}_markup(\$url, \$type, \$data);");
+      }
+    }
+
+    //If at least one button is selected, go on
+    if(count($social_links) > 0){
+      $node->content['easy_social'] = array(
+        '#theme' => 'easy_social_links',
+        '#social_links' => $social_links,
+        '#weight' => 999
+      );
+    } 
+  } 
 }
 
 

@@ -227,7 +227,7 @@
       var projectTab = Drupal.ModuleFilter.activeTab;
     }
 
-    var name = $('td > strong', row).text();
+    var name = $('td label strong', row).text();
     switch (type) {
       case 'enable':
         if (Drupal.ModuleFilter.disabling[id + name] != undefined) {

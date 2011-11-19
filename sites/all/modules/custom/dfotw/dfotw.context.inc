@@ -5,7 +5,7 @@
  */
 
 /**
- * Implementation of hook_context_default_contexts().
+ * Implements hook_context_default_contexts().
  */
 function dfotw_context_default_contexts() {
   $export = array();
@@ -115,41 +115,6 @@ function dfotw_context_default_contexts() {
   // Included for use with string extractors like potx.
   t('Sitewide context');
   $export['dfotw'] = $context;
-
-  $context = new stdClass;
-  $context->disabled = FALSE; /* Edit this to true to make a default context disabled initially */
-  $context->api_version = 3;
-  $context->name = 'function';
-  $context->description = 'Function Node Pages';
-  $context->tag = '';
-  $context->conditions = array(
-    'node' => array(
-      'values' => array(
-        'function' => 'function',
-      ),
-      'options' => array(
-        'node_form' => '0',
-      ),
-    ),
-  );
-  $context->reactions = array(
-    'block' => array(
-      'blocks' => array(
-        'dfotw_tweaks-dfotw_share_post' => array(
-          'module' => 'dfotw_tweaks',
-          'delta' => 'dfotw_share_post',
-          'region' => 'content_top',
-          'weight' => '-10',
-        ),
-      ),
-    ),
-  );
-  $context->condition_mode = 0;
-
-  // Translatables
-  // Included for use with string extractors like potx.
-  t('Function Node Pages');
-  $export['function'] = $context;
 
   return $export;
 }

@@ -15,13 +15,8 @@ function module_filter_uninstall() {
 }
 
 /**
- * Implementation of hook_update().
+ * Remove the 'module_filter_autocomplete' variable.
  */
 function module_filter_update_7100() {
-  $ret = array();
-
   variable_del('module_filter_autocomplete');
-  $ret[] = array('success' => TRUE, 'query' => t('Delete variable "module_filter_autocomplete".'));
-
-  return $ret;
 }

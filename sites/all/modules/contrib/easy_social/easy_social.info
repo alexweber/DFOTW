@@ -13,9 +13,9 @@ dependencies[] = variable_realm
 
 ; Configuration page
 configure = admin/config/content/easysocial
-; Information added by drupal.org packaging script on 2011-08-16
-version = "7.x-1.0-beta4"
+; Information added by drupal.org packaging script on 2011-10-19
+version = "7.x-1.0-beta5"
 core = "7.x"
 project = "easy_social"
-datestamp = "1313463416"
+datestamp = "1319040631"
 

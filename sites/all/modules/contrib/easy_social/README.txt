@@ -6,8 +6,8 @@ I have developed this project, since there is no other module simple enough to a
 
 -- REQUIREMENTS --
 
-None.
-
+Module Variable - http://drupal.org/project/variable
+A small description in the Module Monday from Lullabot: Variable - http://lb.cm/4M8
 
 -- INSTALLATION --
 
